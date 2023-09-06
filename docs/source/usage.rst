@@ -42,7 +42,7 @@ dependencies can be installed with:
 
 .. code-block:: console
 
-   $ sudo apt install -y python3-pip libfuse3-dev python3-tqdm python3-pyfuse3 python3-lz4
+   $ sudo apt install -y build-essential python3-pip libfuse3-dev python3-tqdm python3-pyfuse3 python3-lz4
    $ pip3 install imagebackup
 
 On Fedora Linux - and other Red Hat distributions - the dependencies can be
@@ -50,7 +50,7 @@ installed with:
 
 .. code-block:: console
 
-   $ sudo dnf install gcc fuse3-devel python3-tqdm python3-pip python3-devel
+   $ sudo dnf install -y gcc fuse3-devel python3-tqdm python3-pip python3-devel
    $ pip3 install imagebackup
 
 On other platforms, install package ``libfuse3-dev`` or ``fuse3-devel`` with
