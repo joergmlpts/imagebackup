@@ -1,20 +1,21 @@
-# vntfsclone & vpartclone - Mount Image Backups as Virtual Partitions
+# vntfsclone, vpartclone & partimage - Mount Image Backups as Virtual Partitions
 
 At a low level, this package provides Python code to read the building blocks -
-headers, bitmaps, and blocks - of [partclone](https://partclone.org/) and
+headers, bitmaps, and blocks - of [partclone](https://partclone.org/),
+[partimage](https://www.partimage.org/) and
 [ntfsclone](https://linux.die.net/man/8/ntfsclone) backup
 images. These components may be used in other Python projects. Refer to the
-[API documentation](https://pypartclone.readthedocs.io/en/latest/api.html)
+[API documentation](https://imagebackup.readthedocs.io/en/latest/api.html)
 for a comprehensive description of these components.
 
 ## Virtual Partitions
 
 At a higher level, two command-line utilities based on this low-level code are
 also included. Its features are as follows:
-* They read partclone and ntfsclone images, verify checksums and dump data
-structures.
-* They mount partclone and ntfsclone images - the backup of a partition - as
-virtual partitions.
+* They read partclone, partimage and ntfsclone images, verify checksums and
+  dump headers.
+* They mount partclone, partimage and ntfsclone images - the backup of a
+  partition - as virtual partitions.
 
 These virtual partitions have the contents of the partition. They are created
 without allocating additional disk space. Just like a restored partition, for
@@ -29,7 +30,8 @@ A virtual partition is read-only and cannot be written to.
 
 ## Usage
 
-`vpartclone` and `vntfsclone` are command-line scripts with several options.
+`vpartclone`, `vpartimage` and `vntfsclone` are command-line scripts with
+several options.
 They are typically  called with a single-file, uncompressed and unencrypted
 partclone or ntfsclone image and the `-m` or `--mountpoint` option:
 
@@ -251,8 +253,7 @@ dependencies can be installed with:
 
 ```
 sudo apt install -y python3-pip git pkg-config libfuse3-dev python3-tqdm python3-pyfuse3 python3-lz4
-pip install git+https://github.com/joergmlpts/pypartclone
-
+pip install git+https://github.com/joergmlpts/imagebackup
 ```
 
 The installation of `libfuse3-dev` is not absolutely necessary but it
@@ -261,8 +262,7 @@ lets us install `pyfuse3` later in virtual environments.
 On other platforms `pip` will install the dependencies:
 
 ```
-pip install git+https://github.com/joergmlpts/pypartclone
-
+pip install git+https://github.com/joergmlpts/imagebackup
 ```
 
 where `tqdm` should install without issues but `pyfuse3`, when installed with
@@ -278,22 +278,27 @@ have FUSE.
 
 ## Python API
 
-Partclone images consist of three components, a header, a bitmap and blocks of
-data. A description of the [image file format](https://github.com/Thomas-Tsai/partclone/blob/master/IMAGE_FORMATS.md) is available.
+Partclone and partimage images consist of three components, a header (4
+headers in partimage), a bitmap and blocks of data. A description of the
+[partclone file format](https://github.com/Thomas-Tsai/partclone/blob/master/IMAGE_FORMATS.md)
+is available. This package has classes to read and process these three
+components.
 
-This package has classes to read and process these three components.
+Ntfsclone images do not contain a bitmap. They consist of a header and blocks
+of used blocks and counts of unused blocks of data.
 
-### Classes PartClone and NtfsClone
+### Classes PartClone, PartImage and NtfsClone
 
-Classes `PartClone` and `NtfsClone` are instantiated with an open file and its
-filename. They read the header and bitmap of a partclone or ntfsclone image. If
-the file does not contain a supported image, they raise exception
-`ImageBackupException`.
+Classes `PartClone`, `PartImage` and `NtfsClone` are instantiated with an open
+file and its filename. They read the header and bitmap of a partclone or
+partimage image. If the file does not contain a supported image, they raise
+exception `ImageBackupException`.
 
 ```
-from partclone.imagebackup import ImageBackupException
-from partclone.ntfsclone import NtfsClone
-from partclone.partclone import PartClone
+from imagebackup.imagebackup import ImageBackupException
+from imagebackup.ntfsclone import NtfsClone
+from imagebackup.partclone import PartClone
+from imagebackup.partimage import PartImage
 
 with open('sda1.img', 'rb') as file:
 
@@ -336,8 +341,8 @@ block_offsets     0 instances
 
 The image can also be read from a pipe, a regular file is not necessary.
 
-`partclone` images contain a bitmap, `ntfsclone` images do not. The bitmap
-represents each block with one bit and indicates whether the block
+`partclone` and `partimage` images contain a bitmap, `ntfsclone` images do not.
+The bitmap represents each block with one bit and indicates whether the block
 is in use or not. Only if a block is in use its data is saved to the image file.
 There is not much besides the actual bitmap, just a checksum. The members
 `block_offset_size` and `block_offsets` have not been read from the image file.
@@ -408,14 +413,14 @@ the output file is written sequentially.
 
 ### Class BlockIO
 
-There are situations where the blocks in an image file need to be read in random
-order. Class `BlockIO` allows random access to arbitrary ranges of bytes.
+There are situations where the blocks in an image file need to be read in
+random order. Class `BlockIO` allows random access to arbitrary ranges of bytes.
 
 The image file cannot be read sequentially in this scenario. It has to be a
-regular file; a pipe will not work.
+regular file; a pipe or compresed files will not work.
 
 ```
-from partclone.blockio import BlockIO
+from imagebackup.blockio import BlockIO
 
 blockio = BlockIO(image)
 
