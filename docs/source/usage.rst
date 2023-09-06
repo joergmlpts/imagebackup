@@ -45,11 +45,11 @@ dependencies can be installed with:
    $ sudo apt install -y python3-pip libfuse3-dev python3-tqdm python3-pyfuse3 python3-lz4
    $ pip3 install imagebackup
 
-On other platforms, install package ``libfuse3-dev`` or ``libfuse3-devel`` with
+On other platforms, install package ``libfuse3-dev`` or ``fuse3-devel`` with
 the distribution's package manager before installing imagebackup. This will
 allow pip to install imagebackup's dependency ``pyfuse3`` successfully.
 
-After ``libfuse3-dev`` (Debian, Ubuntu, ...) or ``libfuse3-devel`` (Red Hat,
+After ``libfuse3-dev`` (Debian, Ubuntu, ...) or ``fuse3-devel`` (Red Hat,
 Fedora, ...) has been installed, invoke pip3 or pip to install imagebackup:
 
 .. code-block:: console

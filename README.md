@@ -267,7 +267,7 @@ pip install git+https://github.com/joergmlpts/imagebackup
 
 where `tqdm` should install without issues but `pyfuse3`, when installed with
 `pip`, needs the development package for `fuse3`. This package is called
-`libfuse3-dev` or `libfuse3-devel` and it must be installed before `pip` is
+`libfuse3-dev` or `fuse3-devel` and it must be installed before `pip` is
 invoked as seen above for Ubuntu. The chapter
 [Pyfuse3 Installation](http://www.rath.org/pyfuse3-docs/install.html)
 has more information about the installation of `pyfuse3`.
