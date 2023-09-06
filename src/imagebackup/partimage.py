@@ -904,8 +904,11 @@ class PartImage(ImageBackup):
 
         :param size: Number of bytes to remove from buffer.
         :type size: int
-       """
-        assert size <= len(self.buffer)
+        :raises imagebackup.partimage.PartImageException: when the image is corrupted.
+        """
+
+        if size > len(self.buffer):
+            raise PartImageException(f"File {self.getFilename()} is corrupted.")
 
         # Update address.
         self.address += size
