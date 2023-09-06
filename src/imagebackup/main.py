@@ -51,8 +51,9 @@ def compressedMsg(filename: str, compression: str) -> str:
     return msg.format(msg, n1=filename, n2=out_name, c=compression)
 
 
-def readImage(file: io.BufferedIOBase, sequential: bool, name: str,
-              fn: Callable[[io.BufferedIOBase],ImageBackup]) -> ImageBackup:
+def readImage(file: io.BufferedIOBase, name: str, block_index_size: int,
+              sequential: bool,
+              fn: Callable[[io.BufferedIOBase], ImageBackup]) -> ImageBackup:
     """
     Read an image file, catch *WrongImageFile* exceptions and try to resolve
     them. This function opens, for instance, an image file for partclone,
@@ -62,18 +63,15 @@ def readImage(file: io.BufferedIOBase, sequential: bool, name: str,
 
     :param file: A binary file opened for reading.
     :type file: io.BufferedIOBase
-
-    :param sequential: Whether or not the image is to be read sequentially. If so, this function will try to support compressed files; otherwise it will suggest a command to uncompress the image file.
-    :type sequential: bool
-
     :param name: The file name of the file we are reading.
     :type name: str
-
+    :param block_index_size: is a parameter for the index; defaults to 1024 bits.
+    :type block_index_size: int
+    :param sequential: Whether or not the image is to be read sequentially. If so, this function will try to support compressed files; otherwise it will suggest a command to uncompress the image file.
+    :type sequential: bool
     :param fn: A function that we call to read the backup image. The function takes a single argument, an open file, and returns an object derived from *ImageBackup*.
     :type fn: Callable[[io.BufferedIOBase],imagebackup.imagebackup.ImageBackup]
-
     :raises imagebackup.imagebackup.ImageBackupException: Image not supported.
-
     :returns: A *PartImage*, *PartClone*, or *NtfsClone* instance.
     """
     try:
@@ -83,22 +81,22 @@ def readImage(file: io.BufferedIOBase, sequential: bool, name: str,
         if magic[:len(ImageBackup.NTFSCLONE)] == ImageBackup.NTFSCLONE:
             if isRegularFile(file):
                 file.seek(0)
-                return readImage(file, sequential, name,
+                return readImage(file, name, block_index_size, sequential,
                                  lambda f:NtfsClone(f, name))
             else:
                 raise e
         elif magic[:len(ImageBackup.PARTCLONE)] == ImageBackup.PARTCLONE:
             if isRegularFile(file):
                 file.seek(0)
-                return readImage(file, sequential, name,
-                                 lambda f:PartClone(f, name))
+                return readImage(file, name, block_index_size, sequential,
+                                 lambda f:PartClone(f, name, block_index_size))
             else:
                 raise e
         elif magic[:len(ImageBackup.PARTIMAGE)] == ImageBackup.PARTIMAGE:
             if isRegularFile(file):
                 file.seek(0)
-                return readImage(file, sequential, name,
-                                 lambda f:PartImage(f, name))
+                return readImage(file, name, block_index_size, sequential,
+                                 lambda f:PartImage(f, name, block_index_size))
             else:
                 raise e
         elif len(magic) >= 2:
@@ -110,32 +108,37 @@ def readImage(file: io.BufferedIOBase, sequential: bool, name: str,
                     raise WrongImageFile(compressedMsg(name, 'gz'), magic)
                 file.seek(0)
                 gzip_file = gzip.open(filename=file, mode='rb')
-                return readImage(gzip_file, sequential, name, fn)
+                return readImage(gzip_file, name, block_index_size,
+                                 sequential, fn)
             elif word == ImageBackup.BZIP2:
                 if not sequential:
                     raise WrongImageFile(compressedMsg(name, 'bz2'), magic)
                 file.seek(0)
                 bz2_file = bz2.open(filename=file, mode='rb')
-                return readImage(bz2_file, sequential, name, fn)
+                return readImage(bz2_file, name, block_index_size,
+                                 sequential, fn)
             elif word == ImageBackup.ZSTD:
                 if not sequential:
                     raise WrongImageFile(compressedMsg(name, 'zstd'), magic)
                 file.seek(0)
                 zstd_file = pyzstd.ZstdFile(filename=name, mode='rb')
-                return readImage(zstd_file, sequential, name, fn)
+                return readImage(zstd_file, name, block_index_size,
+                                 sequential, fn)
             elif word in [ImageBackup.XZ, ImageBackup.LZMA]:
                 if not sequential:
                     c = 'xz' if word == ImageBackup.XZ else 'lzma'
                     raise WrongImageFile(compressedMsg(name, c), magic)
                 file.seek(0)
                 lzma_file = lzma.open(filename=name, mode='rb')
-                return readImage(lzma_file, sequential, name, fn)
+                return readImage(lzma_file, name, block_index_size,
+                                 sequential, fn)
             elif word == ImageBackup.LZ4:
                 if not sequential:
                     raise WrongImageFile(compressedMsg(name, 'lz4'), magic)
                 file.seek(0)
                 lz4_file = lz4.frame.open(filename=name, mode='rb')
-                return readImage(lz4_file, sequential, name, fn)
+                return readImage(lz4_file, name, block_index_size,
+                                 sequential, fn)
             else:
                 raise e
         else:
@@ -156,8 +159,8 @@ def utility(fn: Callable[[io.BufferedIOBase],ImageBackup],
 
     try:
 
-        image = readImage(args.image, args.mountpoint is None, args.image.name,
-                          fn)
+        image = readImage(args.image, args.image.name, args.index_size,
+                          args.mountpoint is None, fn)
 
         if args.verbose:
             print(image)
@@ -218,6 +221,7 @@ def vntfsclone():
     parser.add_argument('-q', '--quiet', action='store_true',
                         help='suppress progress bar when indexing')
     args = parser.parse_args()
+    args.index_size = ImageBackup.BLOCK_OFFSET_SIZE
     utility(lambda f:NtfsClone(f, args.image.name), args)
 
 

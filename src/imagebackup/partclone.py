@@ -48,7 +48,7 @@ class PartClone(ImageBackup):
     BITMAP_MODE   = { 0: 'NONE', 1: 'BIT', 8: 'BYTE' }
 
     def __init__(self, file: io.BufferedIOBase, filename: str,
-                 block_offset_size: int = 1024):
+                 block_offset_size: int = ImageBackup.BLOCK_OFFSET_SIZE):
         super().__init__(file, filename, block_offset_size)
 
         # read 106-byte header

@@ -117,7 +117,7 @@ class NtfsClone(ImageBackup):
     VER_MINOR   = 1
 
     def __init__(self, file: io.BufferedIOBase, filename: str):
-        super().__init__(file, filename)
+        super().__init__(file, filename, ImageBackup.BLOCK_OFFSET_SIZE)
 
         self.buffer = file.read(self.HEADER_SIZE)
 

@@ -1,5 +1,5 @@
 import datetime, io, os, struct, time, uuid
-from typing import Callable, List, Optional, Tuple
+from typing import Callable, List, Optional, Tuple, Union
 
 from tqdm import tqdm # install with "pip install tqdm"; on Ubuntu install with "sudo apt install python3-tqdm"
 
@@ -121,15 +121,23 @@ class VolumeHeader(Base):
     """
     Volume Header, the first 512 bytes of a partimage file.
 
-    :param buffer: 512 bytes of header
-    :type buffer: bytes
-    :raises imagebackup.imagebackup.WrongImageFile: when buffer is not start of a partimage volume.
+    :param file: Binary file opened for input.
+    :type file: io.BufferedIOBase
+    :param filename: The open file's name.
+    :type filename: str
+    :raises imagebackup.imagebackup.WrongImageFile: if the image file is not a partclone image.
+    :raises imagebackup.partimage.PartImageException: if the image file is truncated.
     """
     HEADER_SIZE      = 512
     NAME             = 'Volume Header'
     DUMP_HEX         = ['identifier']
 
-    def __init__(self, filename: str, buffer: bytes):
+    def __init__(self, file: io.BufferedIOBase, filename: str):
+        buffer = file.read(self.HEADER_SIZE)
+        if len(buffer) < self.HEADER_SIZE:
+            raise PartImageException(f"File '{filename}' truncated; "
+                                     f"only {len(buffer)} of "
+                                     f"{self.HEADER_SIZE} bytes read.")
         self.version = ''
         if buffer[:32] != ImageBackup.PARTIMAGE + bytes(16):
             raise WrongImageFile(f"Not a partimage file: '{filename}'.", buffer)
@@ -571,7 +579,7 @@ class PartImage(ImageBackup):
     CHECK_SIZE         = 16
 
     def __init__(self, file: io.BufferedIOBase, filename: str,
-                 block_offset_size: int = 1024):
+                 block_offset_size: int = ImageBackup.BLOCK_OFFSET_SIZE):
         super().__init__(file, filename, block_offset_size)
 
         self.local            = bytes()
@@ -583,12 +591,7 @@ class PartImage(ImageBackup):
         self.address          = self.VOLUME_HEADER_SIZE
         self.max_block_range  = 0
 
-        self.buffer = self.file.read(self.VOLUME_HEADER_SIZE)
-        if len(self.buffer) < self.VOLUME_HEADER_SIZE:
-            raise PartImageException(f"File '{self.filename}' truncated; "
-                                     f"only {len(self.buffer)} of "
-                                     f"{self.VOLUME_HEADER_SIZE} read.")
-        self.volume_header = VolumeHeader(self.filename, self.buffer)
+        self.volume_header = VolumeHeader(file, filename)
 
         if self.volume_header.getVolumeNo() != 0:
             raise PartImageException(f"File '{self.filename}' is not the first "
@@ -885,9 +888,7 @@ class PartImage(ImageBackup):
             filename = filename[:-3] + f'{volumeNo+1:03}'
             if os.path.exists(filename):
                 f = open(filename, 'rb')
-                volume = VolumeHeader(filename,
-                                      f.read(VolumeHeader.HEADER_SIZE))
-                print(filename, 'volume read')
+                volume = VolumeHeader(f, filename)
                 if volume.getVolumeNo() == volumeNo + 1 and \
                    self.volume_header.getIdentifier() == volume.getIdentifier():
                     self.volume_header = volume
@@ -900,7 +901,10 @@ class PartImage(ImageBackup):
         """
         Remove `size` bytes of `self.buffer`. Increase `self.address` by
         `size`, checksum the first `size` bytes of `self.buffer`.
-        """
+
+        :param size: Number of bytes to remove from buffer.
+        :type size: int
+       """
         assert size <= len(self.buffer)
 
         # Update address.

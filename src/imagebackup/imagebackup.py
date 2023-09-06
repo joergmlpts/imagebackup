@@ -119,7 +119,7 @@ class ImageBackup:
     "Allocate an index for every 128 bytes; a reasonable default for indexing."
 
     def __init__(self, file: io.BufferedIOBase, filename: str,
-                 block_offset_size: int = 1024):
+                 block_offset_size: int):
         self.file = file
         self.filename = filename
         self.bitmap = bytes()
