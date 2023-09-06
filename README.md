@@ -243,7 +243,7 @@ an index for a virtual partition. The entire file is also read when
 `vpartclone` verifies checksums.
 
 
-## Dependencies
+## Installation
 
 This code requires Python 3.8 or later and the additional packages `tqdm`,
 `pyfuse3`, `pyzstd`, and `lz4`.
@@ -253,11 +253,16 @@ dependencies can be installed with:
 
 ```
 sudo apt install -y python3-pip git pkg-config libfuse3-dev python3-tqdm python3-pyfuse3 python3-lz4
-pip install git+https://github.com/joergmlpts/imagebackup
+pip3 install git+https://github.com/joergmlpts/imagebackup
 ```
 
-The installation of `libfuse3-dev` is not absolutely necessary but it
-lets us install `pyfuse3` later in virtual environments.
+On Fedora Linux - and other Red Hat distributions - the dependencies can be
+installed with:
+
+```
+sudo dnf install gcc fuse3-devel python3-tqdm python3-pip python3-devel
+pip3 install git+https://github.com/joergmlpts/imagebackup
+```
 
 On other platforms `pip` will install the dependencies:
 
@@ -268,12 +273,12 @@ pip install git+https://github.com/joergmlpts/imagebackup
 where `tqdm` should install without issues but `pyfuse3`, when installed with
 `pip`, needs the development package for `fuse3`. This package is called
 `libfuse3-dev` or `fuse3-devel` and it must be installed before `pip` is
-invoked as seen above for Ubuntu. The chapter
+invoked as seen above for Ubuntu and Fedora. The chapter
 [Pyfuse3 Installation](http://www.rath.org/pyfuse3-docs/install.html)
 has more information about the installation of `pyfuse3`.
 
 Please note that this utility relies on the filesystem in userspace (FUSE)
-functionality. It will not run on Windows and all other platforms that do not
+functionality. It will not run on Windows and any other platform that does not
 have FUSE.
 
 ## Python API
