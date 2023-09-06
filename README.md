@@ -252,22 +252,22 @@ On Ubuntu Linux - and perhaps other Debian-based distributions - these
 dependencies can be installed with:
 
 ```
-sudo apt install -y python3-pip git pkg-config libfuse3-dev python3-tqdm python3-pyfuse3 python3-lz4
-pip3 install git+https://github.com/joergmlpts/imagebackup
+sudo apt install -y build-essential python3-pip git pkg-config libfuse3-dev python3-tqdm python3-pyfuse3 python3-lz4
+pip3 install imagebackup
 ```
 
 On Fedora Linux - and other Red Hat distributions - the dependencies can be
 installed with:
 
 ```
-sudo dnf install gcc fuse3-devel python3-tqdm python3-pip python3-devel
-pip3 install git+https://github.com/joergmlpts/imagebackup
+sudo dnf install -y gcc fuse3-devel python3-tqdm python3-pip python3-devel
+pip3 install imagebackup
 ```
 
 On other platforms `pip` will install the dependencies:
 
 ```
-pip install git+https://github.com/joergmlpts/imagebackup
+pip install imagebackup
 ```
 
 where `tqdm` should install without issues but `pyfuse3`, when installed with
