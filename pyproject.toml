@@ -1,0 +1,43 @@
+[project]
+name = 'imagebackup'
+version = '0.1.5'
+authors = [
+  { name='joergmlpts', email='joergmlpts@outlook.com' },
+]
+description = 'Python package to read partclone, partimage and ntfsclone backup images & utility to mount images as virtual partitions.'
+readme = 'README.md'
+requires-python = '>=3.8'
+classifiers = [
+  'Development Status :: 4 - Beta',
+  'Intended Audience :: Developers',
+  'Intended Audience :: End Users/Desktop',
+  'Intended Audience :: System Administrators',
+  'License :: OSI Approved :: MIT License',
+  'Operating System :: POSIX :: Linux',
+  'Programming Language :: Python',
+  'Programming Language :: Python :: 3',
+  'Programming Language :: Python :: 3 :: Only',
+  'Programming Language :: Python :: 3.8',
+  'Programming Language :: Python :: 3.9',
+  'Programming Language :: Python :: 3.10',
+  'Programming Language :: Python :: 3.11',
+  'Programming Language :: Python :: 3.12',
+  'Programming Language :: Python :: 3.13',
+  'Topic :: System :: Archiving :: Backup',
+  'Topic :: Utilities'
+]
+dependencies = ['lz4', 'tqdm', 'pyfuse3', 'pyzstd']
+keywords = ['partclone', 'partimage', 'ntfsclone', 'image', 'backup']
+
+[project.scripts]
+vpartclone = 'imagebackup.main:vpartclone'
+vntfsclone = 'imagebackup.main:vntfsclone'
+vpartimage = 'imagebackup.main:vpartimage'
+
+[project.urls]
+'Homepage' = 'https://github.com/joergmlpts/imagebackup'
+'Bug Tracker' = 'https://github.com/joergmlpts/imagebackup/issues'
+
+[build-system]
+requires = ['setuptools>=61.0']
+build-backend = 'setuptools.build_meta'
