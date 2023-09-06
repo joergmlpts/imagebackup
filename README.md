@@ -422,7 +422,7 @@ There are situations where the blocks in an image file need to be read in
 random order. Class `BlockIO` allows random access to arbitrary ranges of bytes.
 
 The image file cannot be read sequentially in this scenario. It has to be a
-regular file; a pipe or compresed files will not work.
+regular file; a pipe or compressed files will not work.
 
 ```
 from imagebackup.blockio import BlockIO
