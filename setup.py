@@ -5,7 +5,7 @@ def long_description() -> str:
     with open('README.md', 'rt', encoding='utf-8') as f:
         return f.read()
 
-setup(name='pypartclone',
+setup(name='imagebackup',
       version='0.1.5',
       package_dir={'imagebackup': 'src/imagebackup'},
       packages=['imagebackup'],
