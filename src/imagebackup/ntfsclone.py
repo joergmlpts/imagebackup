@@ -4,8 +4,7 @@ import io, struct
 from dataclasses import dataclass
 from typing import Callable, List, Optional
 
-from .imagebackup import ImageBackup, ImageBackupException, WrongImageFile, \
-                         reportSize
+from .imagebackup import ImageBackup, ImageBackupException, reportSize
 
 from tqdm import tqdm # install with "pip install tqdm"; on Ubuntu install with "sudo apt install python3-tqdm"
 
@@ -107,8 +106,7 @@ class NtfsClone(ImageBackup):
     :type file: io.BufferedIOBase
     :param filename: The open file's name.
     :type filename: str
-    :raises imagebackup.imagebackup.WrongImageFile: if the file is not an ntfsclone image.
-    :raises imagebackup.ntfsclone.NtfsCloneException: if the file is too short or the major version number differs.
+    :raises imagebackup.ntfsclone.NtfsCloneException: if the file is not an ntfsclone image.
     """
 
     HEADER_SIZE = 50
@@ -124,8 +122,8 @@ class NtfsClone(ImageBackup):
         if len(self.buffer) < self.HEADER_SIZE:
             raise NtfsCloneException(f'Failed to read 50-byte header.')
 
-        if self.buffer[:self.MAGIC_SIZE] != ImageBackup.NTFSCLONE:
-            raise WrongImageFile(f'Not an ntfsclone image.', self.buffer)
+        if self.buffer[:len(self.MAGIC_SIZE)] != ImageBackup.NTFSCLONE:
+            raise NtfsCloneException(f'Not an ntfsclone image.')
 
         self.major_ver, self.minor_ver, self.cluster_size, self.device_size, \
             self.nr_clusters, self.inuse, self.offset_to_image_data = \

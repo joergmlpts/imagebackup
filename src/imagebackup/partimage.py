@@ -3,8 +3,8 @@ from typing import Callable, List, Optional, Tuple, Union
 
 from tqdm import tqdm # install with "pip install tqdm"; on Ubuntu install with "sudo apt install python3-tqdm"
 
-from .imagebackup import ImageBackupException, WrongImageFile, ImageBackup, \
-                         crc32, BITS_SET
+from .imagebackup import ImageBackupException, ImageBackup, crc32, BITS_SET
+from .utilities import uncompress
 
 
 #######################################################################
@@ -125,8 +125,7 @@ class VolumeHeader(Base):
     :type file: io.BufferedIOBase
     :param filename: The open file's name.
     :type filename: str
-    :raises imagebackup.imagebackup.WrongImageFile: if the image file is not a partclone image.
-    :raises imagebackup.partimage.PartImageException: if the image file is truncated.
+    :raises imagebackup.partimage.PartImageException: if the file is not a partimage image.
     """
     HEADER_SIZE      = 512
     NAME             = 'Volume Header'
@@ -139,8 +138,8 @@ class VolumeHeader(Base):
                                      f"only {len(buffer)} of "
                                      f"{self.HEADER_SIZE} bytes read.")
         self.version = ''
-        if buffer[:32] != ImageBackup.PARTIMAGE + bytes(16):
-            raise WrongImageFile(f"Not a partimage file: '{filename}'.", buffer)
+        if buffer[:len(ImageBackup.PARTIMAGE)] != ImageBackup.PARTIMAGE:
+            raise PartImageException(f"Not a partimage file: '{filename}'.")
         cur = self.parseStrings(32, buffer, [('version', 64)])
         self.volume, self.identifier = struct.unpack('<LQ', buffer[cur:cur+12])
 
@@ -560,8 +559,7 @@ class PartImage(ImageBackup):
     :type filename: str
     :param block_offset_size: is a parameter for the index; defaults to 1024 bits.
     :type block_offset_size: int
-    :raises imagebackup.imagebackup.WrongImageFile: if the image file is not a partclone image.
-    :raises imagebackup.partimage.PartImageException: if the image file is truncated or either the version number or any of the checksums differ.
+    :raises imagebackup.partimage.PartImageException: if the file is not a partimage image.
     """
 
     MAGIC_BEGIN        = b'MAGIC-BEGIN-'
@@ -887,12 +885,12 @@ class PartImage(ImageBackup):
         if filename.endswith(f'.{volumeNo:03}'):
             filename = filename[:-3] + f'{volumeNo+1:03}'
             if os.path.exists(filename):
-                f = open(filename, 'rb')
-                volume = VolumeHeader(f, filename)
+                file, _, compression = uncompress(open(filename, 'rb'))
+                volume = VolumeHeader(file, filename)
                 if volume.getVolumeNo() == volumeNo + 1 and \
                    self.volume_header.getIdentifier() == volume.getIdentifier():
                     self.volume_header = volume
-                    super().updateFile(f, filename)
+                    super().updateFile(file, filename)
                     return
         raise PartImageException(f"End-of-file reading '{self.getFilename()}': "
                                  f"read only {got_size} of {need_size} bytes.")

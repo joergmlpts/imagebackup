@@ -1,65 +1,23 @@
-#!/usr/bin/env python3
-import argparse, bz2, gzip, io, lzma, os, struct, sys
+import argparse, io, os, struct, sys
 from typing import Callable
 
-import pyzstd    # install with "pip install pystd"
-import lz4.frame # install with "pip install lz4"; on Ubuntu install with "sudo apt install python3-lz4"
-
-from .imagebackup import ImageBackupException, WrongImageFile, ImageBackup
+from .imagebackup import ImageBackupException, ImageBackup
 from .ntfsclone import NtfsClone
 from .partclone import PartClone
 from .partimage import PartImage
-from .fuse import runFuse, isEmptyDirectory, isRegularFile
+from .fuse import runFuse, isEmptyDirectory
+from .utilities import uncompress, isRegularFile
 
 
-def compressedMsg(filename: str, compression: str) -> str:
-    """
-    Formats the error message for compressed images encountered when reading
-    image. Suggests appropiate command to uncompress them.
+###########################################################################
+#                               readImage                                 #
+###########################################################################
 
-    :param filename: File name of the compressed image.
-    :type progress_bar: str
-
-    :param compression: 'gz', 'bz2', 'zstd', 'xz', 'lzma', and 'lz4' are supported.
-    :type progress_bar: str
-
-    :returns: A formatted error message.
-    """
-
-    # Suggest an output file name that does not already exist.
-    out_name = os.path.split(filename)[1].replace('.'+compression, '')
-    if out_name == filename or not out_name.endswith('.img') or \
-       os.path.exists(out_name):
-        if os.path.exists(out_name + '.img'):
-            i = 1
-            while os.path.exists(out_name + f'_{i}.img'):
-                i += 1
-            out_name = out_name + f'_{i}.img'
-        else:
-            out_name += '.img'
-
-    if compression == 'gz':
-        msg = "File '{n1}' is gzip-compressed; run 'gunzip < {n1} > {n2}' " \
-              "and try again with '{n2}'."
-    elif compression == 'bz2':
-        msg = "File '{n1}' is bzip2-compressed; run 'bunzip2 < {n1} > {n2}' " \
-              "and try again with '{n2}'."
-    else:
-        msg = "File '{n1}' is {c}-compressed; run 'zstd -d " \
-              "--format={c} -o {n2} {n1}' and try again with '{n2}'."
-
-    return msg.format(msg, n1=filename, n2=out_name, c=compression)
-
-
-def readImage(file: io.BufferedIOBase, name: str, block_index_size: int,
-              sequential: bool,
+def readImage(f: io.BufferedReader, block_index_size: int, sequential: bool,
               fn: Callable[[io.BufferedIOBase], ImageBackup]) -> ImageBackup:
     """
-    Read an image file, catch *WrongImageFile* exceptions and try to resolve
-    them. This function opens, for instance, an image file for partclone,
-    catches an exception, and ultimately opens it for ntfsclone.
-    If the image is to be read sequentially, it also silently re-opens it
-    to undo gzip-, bz2-, and zstd- compression.
+    Read an image file, uncompress compressed files if possible, check the
+    first bytes of the file to determine correct format.
 
     :param file: A binary file opened for reading.
     :type file: io.BufferedIOBase
@@ -74,75 +32,26 @@ def readImage(file: io.BufferedIOBase, name: str, block_index_size: int,
     :raises imagebackup.imagebackup.ImageBackupException: Image not supported.
     :returns: A *PartImage*, *PartClone*, or *NtfsClone* instance.
     """
-    try:
-        return fn(file)
-    except WrongImageFile as e:
-        magic = e.getMagic()
-        if magic[:len(ImageBackup.NTFSCLONE)] == ImageBackup.NTFSCLONE:
-            if isRegularFile(file):
-                file.seek(0)
-                return readImage(file, name, block_index_size, sequential,
-                                 lambda f:NtfsClone(f, name))
-            else:
-                raise e
-        elif magic[:len(ImageBackup.PARTCLONE)] == ImageBackup.PARTCLONE:
-            if isRegularFile(file):
-                file.seek(0)
-                return readImage(file, name, block_index_size, sequential,
-                                 lambda f:PartClone(f, name, block_index_size))
-            else:
-                raise e
-        elif magic[:len(ImageBackup.PARTIMAGE)] == ImageBackup.PARTIMAGE:
-            if isRegularFile(file):
-                file.seek(0)
-                return readImage(file, name, block_index_size, sequential,
-                                 lambda f:PartImage(f, name, block_index_size))
-            else:
-                raise e
-        elif len(magic) >= 2:
-            # Uncompress on the fly if we are only going to read
-            # the image sequentially.
-            word = struct.unpack('<H', magic[:2])[0]
-            if word == ImageBackup.GZIP:
-                if not sequential:
-                    raise WrongImageFile(compressedMsg(name, 'gz'), magic)
-                file.seek(0)
-                gzip_file = gzip.open(filename=file, mode='rb')
-                return readImage(gzip_file, name, block_index_size,
-                                 sequential, fn)
-            elif word == ImageBackup.BZIP2:
-                if not sequential:
-                    raise WrongImageFile(compressedMsg(name, 'bz2'), magic)
-                file.seek(0)
-                bz2_file = bz2.open(filename=file, mode='rb')
-                return readImage(bz2_file, name, block_index_size,
-                                 sequential, fn)
-            elif word == ImageBackup.ZSTD:
-                if not sequential:
-                    raise WrongImageFile(compressedMsg(name, 'zstd'), magic)
-                file.seek(0)
-                zstd_file = pyzstd.ZstdFile(filename=name, mode='rb')
-                return readImage(zstd_file, name, block_index_size,
-                                 sequential, fn)
-            elif word in [ImageBackup.XZ, ImageBackup.LZMA]:
-                if not sequential:
-                    c = 'xz' if word == ImageBackup.XZ else 'lzma'
-                    raise WrongImageFile(compressedMsg(name, c), magic)
-                file.seek(0)
-                lzma_file = lzma.open(filename=name, mode='rb')
-                return readImage(lzma_file, name, block_index_size,
-                                 sequential, fn)
-            elif word == ImageBackup.LZ4:
-                if not sequential:
-                    raise WrongImageFile(compressedMsg(name, 'lz4'), magic)
-                file.seek(0)
-                lz4_file = lz4.frame.open(filename=name, mode='rb')
-                return readImage(lz4_file, name, block_index_size,
-                                 sequential, fn)
-            else:
-                raise e
-        else:
-            raise e
+
+    file, filename, compression = uncompress(f, errorOut=not sequential)
+
+    magic_len = max(len(ImageBackup.NTFSCLONE), len(ImageBackup.PARTCLONE),
+                    len(ImageBackup.PARTIMAGE))
+    magic     = file.peek(magic_len)
+
+    if magic[:len(ImageBackup.PARTCLONE)] == ImageBackup.PARTCLONE:
+        return PartClone(file, filename, block_index_size)
+    if magic[:len(ImageBackup.NTFSCLONE)] == ImageBackup.NTFSCLONE:
+        return NtfsClone(file, filename)
+    if magic[:len(ImageBackup.PARTIMAGE)] == ImageBackup.PARTIMAGE:
+        return PartImage(file, filename, block_index_size)
+
+    return fn(file)
+
+
+###########################################################################
+#                                utility                                  #
+###########################################################################
 
 def utility(fn: Callable[[io.BufferedIOBase],ImageBackup],
             args: argparse.Namespace) -> None:
@@ -159,7 +68,7 @@ def utility(fn: Callable[[io.BufferedIOBase],ImageBackup],
 
     try:
 
-        image = readImage(args.image, args.image.name, args.index_size,
+        image = readImage(args.image, args.index_size,
                           args.mountpoint is None, fn)
 
         if args.verbose:
@@ -298,6 +207,10 @@ def vpartimage():
     args = parser.parse_args()
     utility(lambda f:PartImage(f, args.image.name, args.index_size), args)
 
+
+###########################################################################
+#                             indexSizeType                               #
+###########################################################################
 
 def indexSizeType(arg: str) -> int:
     """

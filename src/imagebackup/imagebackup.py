@@ -15,18 +15,6 @@ class ImageBackupException(Exception):
     def __init__(self, msg: str):
         super().__init__(msg)
 
-class WrongImageFile(ImageBackupException):
-    """
-    This exception is raised when the image file is not the expected format.
-    """    
-    def __init__(self, msg: str, magic: bytes):
-        super().__init__(msg)
-        self.magic = magic
-
-    def getMagic(self):
-        "Return data that has already been read from the image file."
-        return self.magic
-
 
 #######################################################################
 #                              32-bit CRC                             #
@@ -105,7 +93,7 @@ class ImageBackup:
     """
 
     PARTCLONE = b'partclone-image'
-    PARTIMAGE = b'PaRtImAgE-VoLuMe'
+    PARTIMAGE = b'PaRtImAgE-VoLuMe' + bytes(16)
     NTFSCLONE = b'\0ntfsclone-image'
 
     GZIP  = 0x8b1f
@@ -154,7 +142,8 @@ class ImageBackup:
         :param filename: The open file's name.
         :type filename: str
         """
-        self.file.close()
+        if file != self.file:
+            self.file.close()
         self.file = file
         self.filename = filename
 

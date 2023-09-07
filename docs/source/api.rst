@@ -187,6 +187,12 @@ Module fuse
 .. automodule:: imagebackup.fuse
    :members:
 
+Module utilities
+----------------
+
+.. automodule:: imagebackup.utilities
+   :members:
+
 Module main
 -----------
 

@@ -5,7 +5,7 @@ import pyfuse3_asyncio
 
 from .imagebackup import ImageBackup, ImageBackupException
 from .blockio import BlockIO
-
+from .utilities import isRegularFile
 
 class ImageBackupFS(pyfuse3.Operations):
     """
@@ -209,16 +209,6 @@ def runFuse(image: ImageBackup, mountpoint: str, debug: bool = False) -> None:
 
         loop.close()
         pyfuse3.close(unmount=True)
-
-def isRegularFile(file: io.BufferedIOBase) -> bool:
-    """
-    Is the open file a regular file and not for instance a pipe?
-
-    :param file: Binary file opened for input.
-    :type file: io.BufferedIOBase
-    :returns: *True* if *file* is a regular file, *False* otherwise.
-    """
-    return bool(os.fstat(file.fileno()).st_mode & stat.S_IFREG)
 
 def assertRegularFile(file: io.BufferedIOBase, filename: str) -> None:
     """

@@ -1,8 +1,8 @@
 import io, os, struct
 from typing import Callable, List, Optional
 
-from .imagebackup import ImageBackup, ImageBackupException, WrongImageFile, \
-                         reportSize, CRC32_SEED, crc32, BITS_SET
+from .imagebackup import ImageBackup, ImageBackupException, reportSize, \
+                         CRC32_SEED, crc32, BITS_SET
 
 from tqdm import tqdm # install with "pip install tqdm"; on Ubuntu install with "sudo apt install python3-tqdm"
 
@@ -38,8 +38,7 @@ class PartClone(ImageBackup):
     :type filename: str
     :param block_offset_size: is a parameter for the index; defaults to 1024 bits.
     :type block_offset_size: int
-    :raises partclone.imagebackup.WrongImageFile: if the image file is not a partclone image.
-    :raises imagebackup.partclone.PartCloneException: if the image file is truncated or either the version number or any of the checksums differ.
+    :raises imagebackup.partclone.PartCloneException: if the file is not a partclone image.
     """
 
     READ_SIZE = 110
@@ -53,11 +52,10 @@ class PartClone(ImageBackup):
 
         # read 106-byte header
         buffer = file.read(self.READ_SIZE)
-        if buffer[:15] != self.PARTCLONE:
-            raise WrongImageFile(f"'{filename}' is not a partclone image. "
-                                 f"Command 'file {filename}' can help "
-                                 "figure out what kind of file this is.",
-                                 buffer)
+        if buffer[:len(self.PARTCLONE)] != self.PARTCLONE:
+            raise PartCloneException(f"'{filename}' is not a partclone image. "
+                                     f"Command 'file {filename}' can help "
+                                     "figure out what kind of file this is.")
         self.partclone_version = str(buffer[16:30], 'utf-8')
         if (pos := self.partclone_version.find('\0')) != -1:
             self.partclone_version = self.partclone_version[:pos]
