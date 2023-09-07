@@ -122,7 +122,7 @@ class NtfsClone(ImageBackup):
         if len(self.buffer) < self.HEADER_SIZE:
             raise NtfsCloneException(f'Failed to read 50-byte header.')
 
-        if self.buffer[:len(self.MAGIC_SIZE)] != ImageBackup.NTFSCLONE:
+        if self.buffer[:self.MAGIC_SIZE] != ImageBackup.NTFSCLONE:
             raise NtfsCloneException(f'Not an ntfsclone image.')
 
         self.major_ver, self.minor_ver, self.cluster_size, self.device_size, \
