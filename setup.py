@@ -6,7 +6,7 @@ def long_description() -> str:
         return f.read()
 
 setup(name='imagebackup',
-      version='0.1.7',
+      version='0.1.8',
       package_dir={'imagebackup': 'src/imagebackup'},
       packages=['imagebackup'],
       author='joergmlpts',

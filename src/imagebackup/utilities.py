@@ -5,14 +5,46 @@ from typing import Callable, Dict, List, Optional, Tuple
 import pyzstd    # install with "pip install pystd"
 import lz4.frame # install with "pip install lz4"; on Ubuntu install with "sudo apt install python3-lz4"
 
-from .imagebackup import ImageBackup, ImageBackupException
+from .imagebackup import ImageBackupException as UtilityException
+
+
+#######################################################################
+#         Magic Numbers for Supported Compression Algorithms          #
+#######################################################################
+
+GZIP  = 0x8b1f
+BZIP2 = 0x5a42
+ZSTD  = 0xb528
+XZ    = 0x37fd
+LZMA  = 0x005d
+LZ4   = 0x2204
+
+
+#######################################################################
+#                         Limit to Open Files                         #
+#######################################################################
+
+MAX_OPEN_SPLIT_FILES = 48
+"""
+During the virtual concatenation of split files, we will not leave more
+than this many files open at any time. This limit is relevant for random
+access to split files; during sequential access we open them just one at
+a time.
+"""
+
+#######################################################################
+#                           class SplitFile                           #
+#######################################################################
 
 @dataclass
 class SplitFile:
-    "This class represents a single individual file of the split file."
+    """
+    This class represents an individual split file. Class `ConcatFiles'
+    stores an array of `SplitFiles`.
+    """
 
     offset  : int
-    "Offset into the unsplit file where this individual file starts."
+    "Offset into the unsplit virtual file where this individual file starts."
 
     size    : int
     "Number of bytes in this file."
@@ -21,13 +53,18 @@ class SplitFile:
     "Name of this individual file."
 
     file    : Optional[io.BufferedReader]
-    "Open file or *None*; files are opened on demand."
+    "Open file or `None`; split files are opened and closed on demand."
 
     def end(self) -> int:
         """
         :returns: offset of first byte of next single individual file.
         """
         return self.offset + self.size
+
+
+#######################################################################
+#                              class LRU                              #
+#######################################################################
 
 class LRU:
     """
@@ -39,7 +76,7 @@ class LRU:
     :type max_open: int
     """
 
-    def __init__(self, max_open = 48):
+    def __init__(self, max_open):
         self.max_open = max_open
         self.lru : Dict[int, SplitFile] = {}
 
@@ -80,9 +117,13 @@ class LRU:
                 sf.file = None
 
 
+#######################################################################
+#                         class ConcatFiles                           #
+#######################################################################
+
 class ConcatFiles(io.BufferedReader):
     """
-    This class is instantiated with a file whose name ends in '.aa' and it
+    This class is instantiated with a file whose name ends in 'aa' and it
     concatenates split binary files.
 
     :param file: A binary file opened for reading.
@@ -90,13 +131,13 @@ class ConcatFiles(io.BufferedReader):
     """
 
     def __init__(self, file: io.BufferedReader):
-        assert file.name.endswith('.aa')
+        assert file.name.endswith('aa')
         self.sequential = True
         self.cur = SplitFile(0, os.fstat(file.fileno()).st_size,
                              file.name, file)
         self.cur_offset = self.cur_idx = 0
         self.split_files = [self.cur]
-        self.lru = LRU()
+        self.lru = LRU(MAX_OPEN_SPLIT_FILES)
         self.lru.insert(self.cur_idx, self.cur)
 
         basename = file.name[:-2]
@@ -123,9 +164,10 @@ class ConcatFiles(io.BufferedReader):
 
     def byOffset(self, offset: int) -> None:
         """
-        Look up a single individual file by index.
+        Look up a single individual file by `offset`.
 
-        This function modifies members *cur_idx*, *cur*, and *cur_offset*.
+        This method performs a binary search and calls method *newFile* to
+        update members *cur_idx*, *cur*, and *cur_offset*.
 
         :param offset: Index into the large unsplit file.
         :type offset: int
@@ -149,7 +191,7 @@ class ConcatFiles(io.BufferedReader):
         """
         Set a new single individual file as the active one.
 
-        This function modifies members *cur_idx*, *cur*, and *cur_offset*.
+        This method modifies members *cur_idx*, *cur*, and *cur_offset*.
 
         :param idx: Index into member *split_files*.
         :type idx: int
@@ -176,7 +218,7 @@ class ConcatFiles(io.BufferedReader):
     @property
     def mode(self) -> str:
         """
-        Return the mode the files has been opened with.
+        Return the mode the file has been opened with.
 
         :returns: string 'rb'
         """
@@ -304,6 +346,8 @@ def compressedMsg(filename: str, compression: str) -> str:
 
     # Suggest an output file name that does not already exist.
     out_name = os.path.split(filename)[1].replace('.'+compression, '')
+    if isSplitFile(out_name):
+        out_name = out_name[:-2]
     if out_name == filename or not out_name.endswith('.img') or \
        os.path.exists(out_name):
         if os.path.exists(out_name + '.img'):
@@ -313,6 +357,19 @@ def compressedMsg(filename: str, compression: str) -> str:
             out_name = out_name + f'_{i}.img'
         else:
             out_name += '.img'
+
+    # Suggest concatenation for split files.
+    if isSplitFile(filename):
+        n1 = filename[:-2] + '*'
+        if compression == 'gz':
+            return f"Files '{n1}' are gzip-compressed; run 'cat {n1} | " \
+                   f"gunzip > {out_name}' and try again with '{out_name}'."
+        if compression == 'bz2':
+            return f"Files '{n1}' are bzip2-compressed; run 'cat {n1} | " \
+                   f"bunzip2 > {out_name}' and try again with '{out_name}'."
+        return f"Files '{n1}' are {c}-compressed; run 'cat {n1} | zstd -d " \
+               f"--format={compression} -o {out_name} -' and try again " \
+               f"with '{out_name}'."
 
     if compression == 'gz':
         msg = "File '{n1}' is gzip-compressed; run 'gunzip < {n1} > {n2}' " \
@@ -328,7 +385,7 @@ def compressedMsg(filename: str, compression: str) -> str:
 
 
 #######################################################################
-#                            isRegularFile                            #
+#                    isRegularFile & isSplitFile                      #
 #######################################################################
 
 def isRegularFile(file: io.BufferedIOBase) -> bool:
@@ -341,31 +398,15 @@ def isRegularFile(file: io.BufferedIOBase) -> bool:
     """
     return bool(os.fstat(file.fileno()).st_mode & stat.S_IFREG)
 
-
-#######################################################################
-#                              kindOfFile                             #
-#######################################################################
-
-def kindOfFile(file: io.BufferedIOBase) -> str:
+def isSplitFile(name: str) -> bool:
     """
-    Return the kind of the open file, e.g. 'regular file', 'pipe', ...
+    Is the file a split file?
 
     :param file: Binary file opened for input.
     :type file: io.BufferedIOBase
-    :returns: string 'regular file', 'pipe', ...
+    :returns: *True* if *name* ends in `aa` and another file `ab` exists, *False* otherwise.
     """
-    fstat = os.fstat(file.fileno())
-    if fstat.st_mode & stat.S_IFREG:
-        return 'regular file'
-    if fstat.st_mode & stat.S_IFBLK:
-        return 'block device'
-    if fstat.st_mode & stat.S_IFSOCK:
-        return 'socket'
-    if fstat.st_mode & stat.S_IFCHR:
-        return 'character device'
-    if fstat.st_mode & stat.S_IFIFO:
-        return 'pipe'
-    return 'something else'
+    return name.endswith('aa') and os.path.exists(name[:-2] + 'ab')
 
 
 #######################################################################
@@ -375,55 +416,56 @@ def kindOfFile(file: io.BufferedIOBase) -> str:
 def uncompress(file: io.BufferedReader, errorOut: bool = False) \
                -> Tuple[io.BufferedIOBase, str, str]:
     """
-    Undo compression if "file" is a compressed file. Return a triple consisting
+    Undo compression if `file` is a compressed file. Return a triple consisting
     of possibly a new file to read uncompressed data from, the file name,
     and the compression used.
 
     This function also deals with split files. If it is called with a file
-    whose name ends with '.aa' and there is also a file '.ab', this function
-    will concatenate .aa, .ab, ... and uncompress the concatenated contents.
+    whose name ends with 'aa' and there is also a file that ends woth 'ab',
+    this function will virtually concatenate aa, ab, ... and uncompress the
+    concatenated contents.
 
     :param file: A binary file opened for reading.
     :type file: io.BufferedReader
-    :param errorOut: if *True* do not uncompress but raise exception
+    :param errorOut: if *True* do not uncompress but raise exception.
     :type errorOut: bool
     :raises imagebackup.partimage.ImageBackupException: when file cannot be uncompressed or *errorOut* is set.
-    :returns: A triple consisting of opened file, file name, and compression.
+    :returns: A triple consisting of opened file, file name, and compression. The compression is represented as empty string for no compression, 'gz', 'bz2', 'zstd', 'xz', 'lzma', or 'lz4'.
     """
     filename = file.name
-    if filename.endswith('.aa') and os.path.exists(filename[:-2] + 'ab'):
+    if isSplitFile(filename):
         file = ConcatFiles(file)
 
     magic = file.peek(2)
     if len(magic) >= 2:
         word = struct.unpack('<H', magic[:2])[0]
-        if word == ImageBackup.GZIP:
+        if word == GZIP:
             if errorOut:
-                raise ImageBackupException(compressedMsg(filename, 'gz'))
+                raise UtilityException(compressedMsg(filename, 'gz'))
             return gzip.open(filename=file, mode='rb'), filename, 'gzip'
-        if word == ImageBackup.BZIP2:
+        if word == BZIP2:
             if errorOut:
-                raise ImageBackupException(compressedMsg(filename, 'bz2'))
+                raise UtilityException(compressedMsg(filename, 'bz2'))
             return bz2.open(filename=file, mode='rb'), filename, 'bzip2'
-        if word == ImageBackup.ZSTD:
+        if word == ZSTD:
             if not errorOut and isRegularFile(file):
                 file.close()
                 return pyzstd.ZstdFile(filename=filename, mode='rb'), \
                        filename, 'zstd'
             else:
-                raise ImageBackupException(compressedMsg(filename, 'zstd'))
-        elif word in [ImageBackup.XZ, ImageBackup.LZMA]:
+                raise UtilityException(compressedMsg(filename, 'zstd'))
+        elif word in [XZ, LZMA]:
             if not errorOut and isRegularFile(file):
                 file.close()
                 return lzma.open(filename=filename, mode='rb'), \
-                       filename, 'xz' if word == ImageBackup.XZ else 'lzma'
+                       filename, 'xz' if word == XZ else 'lzma'
             else:
-                raise ImageBackupException(compressedMsg(filename, 'lzma'))
-        elif word == ImageBackup.LZ4:
+                raise UtilityException(compressedMsg(filename, 'lzma'))
+        elif word == LZ4:
             if not errorOut and isRegularFile(file):
                 file.close()
                 return lz4.frame.open(filename=filename, mode='rb'), \
                        filename, 'lz4'
             else:
-                raise ImageBackupException(compressedMsg(filename, 'lz4'))
+                raise UtilityException(compressedMsg(filename, 'lz4'))
     return file, filename, ''

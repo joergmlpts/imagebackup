@@ -96,13 +96,6 @@ class ImageBackup:
     PARTIMAGE = b'PaRtImAgE-VoLuMe' + bytes(16)
     NTFSCLONE = b'\0ntfsclone-image'
 
-    GZIP  = 0x8b1f
-    BZIP2 = 0x5a42
-    ZSTD  = 0xb528
-    XZ    = 0x37fd
-    LZMA  = 0x005d
-    LZ4   = 0x2204
-
     BLOCK_OFFSET_SIZE = 1024
     "Allocate an index for every 128 bytes; a reasonable default for indexing."
 
