@@ -1,10 +1,287 @@
 import bz2, gzip, io, lzma, os, stat, struct
-from typing import Callable, List, Optional, Tuple
+from dataclasses import dataclass
+from typing import Callable, Dict, List, Optional, Tuple
 
 import pyzstd    # install with "pip install pystd"
 import lz4.frame # install with "pip install lz4"; on Ubuntu install with "sudo apt install python3-lz4"
 
 from .imagebackup import ImageBackup, ImageBackupException
+
+@dataclass
+class SplitFile:
+    "This class represents a single individual file of the split file."
+
+    offset  : int
+    "Offset into the unsplit file where this individual file starts."
+
+    size    : int
+    "Number of bytes in this file."
+
+    filename: str
+    "Name of this individual file."
+
+    file    : Optional[io.BufferedReader]
+    "Open file or *None*; files are opened on demand."
+
+    def end(self) -> int:
+        """
+        :returns: offset of first byte of next single individual file.
+        """
+        return self.offset + self.size
+
+class LRU:
+    """
+    This LRU keeps track of open files. Not more than *max_open* files
+    will be open at any time. When a new file is opened, this class closes
+    the least recently used file.
+
+    :param max_open: The max number of open files.
+    :type max_open: int
+    """
+
+    def __init__(self, max_open = 48):
+        self.max_open = max_open
+        self.lru : Dict[int, SplitFile] = {}
+
+    def insert(self, idx: int, sf: SplitFile) -> None:
+        """
+        Split file *sf* at index *idx* is being used. Append it to lru. If it
+        is already in lru, delete it first. It must become the most recently
+        used entry.
+
+        :param idx: Index of split file *sf*.
+        :type idx: int
+        :param sf: Split file *sf*.
+        :type sf: SplitFile
+        """
+        if idx in self.lru:
+            del self.lru[idx]
+        self.lru[idx] = sf
+        if len(self.lru) > self.max_open:
+            sf = self.lru.pop(next(iter(self.lru)))
+            if sf.file is not None:
+                sf.file.close()
+                sf.file = None
+
+    def remove(self, idx) -> None:
+        """
+        Remove split file at index *idx* from lru. Close file if it is not
+        already closed.
+
+        :param idx: Index of split file *sf*.
+        :type idx: int
+        :param sf: Split file *sf*.
+        :type sf: SplitFile
+        """
+        if idx in self.lru:
+            sf = self.lru.pop(idx)
+            if sf.file is not None:
+                sf.file.close()
+                sf.file = None
+
+
+class ConcatFiles(io.BufferedReader):
+    """
+    This class is instantiated with a file whose name ends in '.aa' and it
+    concatenates split binary files.
+
+    :param file: A binary file opened for reading.
+    :type file: io.BufferedReader
+    """
+
+    def __init__(self, file: io.BufferedReader):
+        assert file.name.endswith('.aa')
+        self.sequential = True
+        self.cur = SplitFile(0, os.fstat(file.fileno()).st_size,
+                             file.name, file)
+        self.cur_offset = self.cur_idx = 0
+        self.split_files = [self.cur]
+        self.lru = LRU()
+        self.lru.insert(self.cur_idx, self.cur)
+
+        basename = file.name[:-2]
+        idx = 0
+        # sequence: aa, ab, ac, ..., yy, yz, zaaa, zaab, ...
+        YZ   = 649
+        ZAAA = 439400
+        a = ord('a')
+        while True:
+            idx += 1 if idx != YZ else ZAAA - YZ
+            if idx < ZAAA:
+                i, j = divmod(idx, 26)
+                fname = basename + chr(a+i) + chr(a+j)
+            else:
+                k, l = divmod(idx, 26)
+                j, k = divmod(k, 26)
+                i, j = divmod(j, 26)
+                fname = basename + chr(a+i) + chr(a+j) + chr(a+k) + chr(a+l)
+            if not os.path.exists(fname):
+                break
+            self.split_files.append(SplitFile(self.split_files[-1].end(),
+                                              os.stat(fname).st_size,
+                                              fname, None))
+
+    def byOffset(self, offset: int) -> None:
+        """
+        Look up a single individual file by index.
+
+        This function modifies members *cur_idx*, *cur*, and *cur_offset*.
+
+        :param offset: Index into the large unsplit file.
+        :type offset: int
+        """
+        l = 0
+        r = len(self.split_files)
+        while l < r:
+            m = (l + r) // 2
+            if offset < self.split_files[m].offset:
+                r = m
+            else:
+                l = m
+                if offset < self.split_files[m].end():
+                    break
+        assert self.split_files[l].offset <= offset and \
+               offset < self.split_files[l].end()
+        if self.cur_idx != l:
+            self.newFile(l)
+
+    def newFile(self, idx: int):
+        """
+        Set a new single individual file as the active one.
+
+        This function modifies members *cur_idx*, *cur*, and *cur_offset*.
+
+        :param idx: Index into member *split_files*.
+        :type idx: int
+        """
+        assert idx >= 0 and idx < len(self.split_files)
+        self.cur_idx = idx
+        self.cur = self.split_files[self.cur_idx]
+        self.lru.insert(self.cur_idx, self.cur)
+        if self.cur.file is None:
+            self.cur.file = open(self.cur.filename, 'rb')
+            self.cur_offset = 0
+        else:
+            self.cur_offset = self.cur.file.tell()
+
+    @property
+    def name(self) -> str:
+        """
+        Return file name that is currently active.
+
+        :returns: file name.
+        """
+        return self.cur.filename
+
+    @property
+    def mode(self) -> str:
+        """
+        Return the mode the files has been opened with.
+
+        :returns: string 'rb'
+        """
+        assert self.cur.file is not None
+        return self.cur.file.mode
+
+    def fileno(self) -> int:
+        """
+        Return file descriptor that is currently active.
+
+        :returns: integer file descriptor
+        """
+        assert self.cur.file is not None
+        return self.cur.file.fileno()
+
+    def peek(self, size: int = 1) -> bytes:
+        """
+        Peek into file. Returns data in buffer that has not yet been
+        returned with *read*.
+
+        :returns: bytes of unread data
+        """
+        assert size >= 0
+        assert self.cur.file is not None
+        return self.cur.file.peek(size)
+
+    def read(self, size: Optional[int] = None) -> bytes:
+        """
+        Read *size* bytes from file. When *size* is *None*, read all the
+        rest of the file.
+
+        :returns: *size* bytes or fewer if *size* bytes would read beyond end-of-file.
+        """
+        if size is None:
+            size = self.split_files[-1].end() - self.tell()
+        result = bytes()
+        while len(result) < size:
+            sz = size - len(result)
+            if self.cur_offset + sz <= self.cur.size:
+                self.cur_offset += sz
+                assert self.cur.file is not None
+                result += self.cur.file.read(sz)
+            else:
+                assert self.cur.file is not None
+                sz = self.cur.size - self.cur_offset
+                result += self.cur.file.read(sz)
+                self.cur_offset += sz
+                if self.cur_idx < len(self.split_files) - 1:
+                    if self.sequential:
+                        self.cur.file.close()
+                        self.cur.file = None
+                        self.lru.remove(self.cur_idx)
+                    self.newFile(self.cur_idx + 1)
+                    if self.cur_offset != 0:
+                        self.cur_offset = 0
+                        assert self.cur.file is not None
+                        self.cur.file.seek(0)
+                else:
+                    return result
+        return result
+
+    def seekable(self) -> bool:
+        """
+        Is this stream seekable?
+
+        :returns: *True*
+        """
+        return True
+
+    def seek(self, pos: int, whence: int = os.SEEK_SET) -> int:
+        """
+        Seek to position in file.
+
+        :returns: new position in file.
+        """
+        assert whence in [os.SEEK_SET, os.SEEK_CUR, os.SEEK_END]
+        if whence == os.SEEK_CUR:
+            pos += self.tell()
+        elif whence == os.SEEK_END:
+            pos += self.split_files[-1].end()
+        assert pos >= 0 and pos <= self.split_files[-1].end()
+        if pos < self.cur.offset or pos >= self.cur.end():
+            if pos != 0:
+                self.sequential = False
+            self.byOffset(pos)
+        if pos != self.cur.offset + self.cur_offset:
+            self.cur_offset = pos - self.cur.offset
+            assert self.cur.file is not None
+            self.cur.file.seek(self.cur_offset)
+        return self.tell()
+
+    def tell(self) -> int:
+        """
+        Return current position in file.
+
+        :returns: position in file.
+        """
+        return self.cur.offset + self.cur_offset
+
+    def close(self) -> None:
+        "Close all individual files."
+        for sf in self.split_files:
+            if sf.file is not None:
+                sf.file.close()
+                sf.file = None
 
 
 #######################################################################
@@ -102,14 +379,21 @@ def uncompress(file: io.BufferedReader, errorOut: bool = False) \
     of possibly a new file to read uncompressed data from, the file name,
     and the compression used.
 
+    This function also deals with split files. If it is called with a file
+    whose name ends with '.aa' and there is also a file '.ab', this function
+    will concatenate .aa, .ab, ... and uncompress the concatenated contents.
+
     :param file: A binary file opened for reading.
     :type file: io.BufferedReader
     :param errorOut: if *True* do not uncompress but raise exception
     :type errorOut: bool
-    :raises imagebackup.partimage.ImageBackupException: when file connot be uncompressed or *errorOut* is set.
+    :raises imagebackup.partimage.ImageBackupException: when file cannot be uncompressed or *errorOut* is set.
     :returns: A triple consisting of opened file, file name, and compression.
     """
     filename = file.name
+    if filename.endswith('.aa') and os.path.exists(filename[:-2] + 'ab'):
+        file = ConcatFiles(file)
+
     magic = file.peek(2)
     if len(magic) >= 2:
         word = struct.unpack('<H', magic[:2])[0]
