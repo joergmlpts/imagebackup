@@ -35,6 +35,7 @@ vntfsclone = 'imagebackup.main:vntfsclone'
 vpartimage = 'imagebackup.main:vpartimage'
 
 [project.urls]
+'Documentation' = 'https://imagebackup.readthedocs.org'
 'Homepage' = 'https://github.com/joergmlpts/imagebackup'
 'Bug Tracker' = 'https://github.com/joergmlpts/imagebackup/issues'
 
