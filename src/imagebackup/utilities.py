@@ -347,13 +347,19 @@ def compressedMsg(filename: str, compression: str) -> str:
     """
 
     # Suggest an output file name that does not already exist.
-    out_name = os.path.split(filename)[1].replace('.'+compression, '')
+    out_name = os.path.split(filename)[1]
+    if '.'+compression in out_name:
+        out_name = out_name.replace('.'+compression, '')
+    elif len(compression) > 2 and '.'+compression[:-1] in out_name:
+        out_name = out_name.replace('.'+compression[:-1], '')
     if out_name[-1] == '?':
         out_name = out_name[:-2]
     elif out_name[-1] == '*':
         out_name = out_name[:-1]
-    if out_name == filename or not out_name.endswith('.img') or \
-       os.path.exists(out_name):
+    if out_name[-1] == '.':
+        out_name = out_name[:-1]
+    if out_name == filename or not (out_name.endswith('.img') or
+       out_name.endswith('-img')) or os.path.exists(out_name):
         if os.path.exists(out_name + '.img'):
             i = 1
             while os.path.exists(out_name + f'_{i}.img'):

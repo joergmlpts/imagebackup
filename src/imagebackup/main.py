@@ -91,10 +91,10 @@ def utility(fn: Callable[[io.BufferedIOBase],ImageBackup],
 
         elif args.crc_check:
             if isinstance(image, NtfsClone):
-                print(f"Reading entire image '{args.image.name}'...")
+                print(f"Reading entire image '{image.getFilename()}'...")
             else:
-                print(f"Verifying all checksums of image '{args.image.name}'"
-                      "...")
+                print("Verifying all checksums of image "
+                      f"'{image.getFilename()}'...")
             image.blockReader(progress_bar=not args.quiet, verify_crc=True)
 
     except ImageBackupException as e:
