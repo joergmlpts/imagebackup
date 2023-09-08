@@ -161,6 +161,8 @@ class ConcatFiles(io.BufferedReader):
             self.split_files.append(SplitFile(self.split_files[-1].end(),
                                               os.stat(fname).st_size,
                                               fname, None))
+        self.filename = basename + ('a?' if len(self.split_files) <= 26 else
+                                '??' if len(self.split_files) < 649 else '*')
 
     def byOffset(self, offset: int) -> None:
         """
@@ -213,7 +215,7 @@ class ConcatFiles(io.BufferedReader):
 
         :returns: file name.
         """
-        return self.cur.filename
+        return self.filename
 
     @property
     def mode(self) -> str:
@@ -346,8 +348,10 @@ def compressedMsg(filename: str, compression: str) -> str:
 
     # Suggest an output file name that does not already exist.
     out_name = os.path.split(filename)[1].replace('.'+compression, '')
-    if isSplitFile(out_name):
+    if out_name[-1] == '?':
         out_name = out_name[:-2]
+    elif out_name[-1] == '*':
+        out_name = out_name[:-1]
     if out_name == filename or not out_name.endswith('.img') or \
        os.path.exists(out_name):
         if os.path.exists(out_name + '.img'):
@@ -359,17 +363,17 @@ def compressedMsg(filename: str, compression: str) -> str:
             out_name += '.img'
 
     # Suggest concatenation for split files.
-    if isSplitFile(filename):
-        n1 = filename[:-2] + '*'
+    if filename[-1] in ['?', '*']:
+        n1 = filename
         if compression == 'gz':
             return f"Files '{n1}' are gzip-compressed; run 'cat {n1} | " \
                    f"gunzip > {out_name}' and try again with '{out_name}'."
         if compression == 'bz2':
             return f"Files '{n1}' are bzip2-compressed; run 'cat {n1} | " \
                    f"bunzip2 > {out_name}' and try again with '{out_name}'."
-        return f"Files '{n1}' are {c}-compressed; run 'cat {n1} | zstd -d " \
-               f"--format={compression} -o {out_name} -' and try again " \
-               f"with '{out_name}'."
+        return f"Files '{n1}' are {compression}-compressed; run 'cat {n1} | " \
+               f"zstd -d --format={compression} -o {out_name} -' and " \
+               f"try again with '{out_name}'."
 
     if compression == 'gz':
         msg = "File '{n1}' is gzip-compressed; run 'gunzip < {n1} > {n2}' " \
@@ -432,9 +436,9 @@ def uncompress(file: io.BufferedReader, errorOut: bool = False) \
     :raises imagebackup.partimage.ImageBackupException: when file cannot be uncompressed or *errorOut* is set.
     :returns: A triple consisting of opened file, file name, and compression. The compression is represented as empty string for no compression, 'gz', 'bz2', 'zstd', 'xz', 'lzma', or 'lz4'.
     """
-    filename = file.name
-    if isSplitFile(filename):
+    if isSplitFile(file.name):
         file = ConcatFiles(file)
+    filename = file.name
 
     magic = file.peek(2)
     if len(magic) >= 2:
@@ -448,21 +452,24 @@ def uncompress(file: io.BufferedReader, errorOut: bool = False) \
                 raise UtilityException(compressedMsg(filename, 'bz2'))
             return bz2.open(filename=file, mode='rb'), filename, 'bzip2'
         if word == ZSTD:
-            if not errorOut and isRegularFile(file):
+            if not errorOut and not isinstance(file, ConcatFiles) and \
+               isRegularFile(file):
                 file.close()
                 return pyzstd.ZstdFile(filename=filename, mode='rb'), \
                        filename, 'zstd'
             else:
                 raise UtilityException(compressedMsg(filename, 'zstd'))
         elif word in [XZ, LZMA]:
-            if not errorOut and isRegularFile(file):
+            if not errorOut and not isinstance(file, ConcatFiles) and \
+               isRegularFile(file):
                 file.close()
                 return lzma.open(filename=filename, mode='rb'), \
                        filename, 'xz' if word == XZ else 'lzma'
             else:
                 raise UtilityException(compressedMsg(filename, 'lzma'))
         elif word == LZ4:
-            if not errorOut and isRegularFile(file):
+            if not errorOut and not isinstance(file, ConcatFiles) and \
+               isRegularFile(file):
                 file.close()
                 return lz4.frame.open(filename=filename, mode='rb'), \
                        filename, 'lz4'
