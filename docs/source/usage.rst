@@ -72,7 +72,7 @@ Utilities vpartclone, vpartimage and vntfsclone
 
 Utilities to mount partclone, partimage and ntfsclone image backups as virtual
 partitions are included in imagebackup. These utilities can be called as
-commands``vpartclone``, ``vpartimage`` and ``vntfsclone``
+commands ``vpartclone``, ``vpartimage`` and ``vntfsclone``
 
 .. code-block:: console
 
