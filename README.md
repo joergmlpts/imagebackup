@@ -1,4 +1,4 @@
-# vntfsclone, vpartclone & partimage - Mount Image Backups as Virtual Partitions
+# vntfsclone, vpartclone & vpartimage - Mount Image Backups as Virtual Partitions
 
 At a low level, this package provides Python code to read the building blocks -
 headers, bitmaps, and blocks - of [partclone](https://partclone.org/),
