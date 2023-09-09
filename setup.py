@@ -1,4 +1,4 @@
-from distutils.core import setup
+from distutils.core import setup, Extension
 
 def long_description() -> str:
     "Return contents of README.md as long package description."
@@ -6,7 +6,7 @@ def long_description() -> str:
         return f.read()
 
 setup(name='imagebackup',
-      version='0.1.8',
+      version='0.1.9',
       package_dir={'imagebackup': 'src/imagebackup'},
       packages=['imagebackup'],
       author='joergmlpts',
@@ -45,4 +45,6 @@ setup(name='imagebackup',
           },
       python_requires='>=3.8',
       install_requires=['lz4', 'tqdm', 'pyfuse3', 'pyzstd'],
+      ext_modules=[Extension('imagebackup.crc',
+                             sources=['src/c/crc.c'], optional=True)]
       )

@@ -20,33 +20,50 @@ class ImageBackupException(Exception):
 #                              32-bit CRC                             #
 #######################################################################
 
-def crc(byte: int) -> int:
-    "Computes the CRC32_TABLE cached values."
-    crc = byte
-    for j in range(8):
-        crc = (crc >> 1) ^ 0xedb88320 if crc & 1 else crc >> 1
-    return crc
-
-CRC32_TABLE = [crc(i) for i in range(256)]
-
-del crc
-
 CRC32_SEED = 0xffffffff
 
-def crc32(buffer: bytes, seed = CRC32_SEED) -> int:
-    """
-    Compute crc32 for the given buffer.
+try:
+    from imagebackup.crc import crc32 as external_crc32
 
-    :param buffer: buffer to compute crc32 for.
-    :type buffer: bytes
-    :param seed: seed to start crc32 computation from, default *0xffffffff*.
-    :type seed: int
-    :returns: 32-bit crc
-    """
-    crc = seed
-    for b in buffer:
-        crc = (crc >> 8) ^ CRC32_TABLE[(crc ^ b) & 0xff]
-    return crc
+    def crc32(buffer: bytes, seed = CRC32_SEED) -> int:
+        """
+        Compute crc32 for the given buffer.
+
+        :param buffer: buffer to compute crc32 for.
+        :type buffer: bytes
+        :param seed: seed to start crc32 computation from, default *0xffffffff*.
+        :type seed: int
+        :returns: 32-bit crc
+        """
+        return external_crc32(buffer, seed)
+
+except ImportError:
+
+    def crc(byte: int) -> int:
+        "Computes the CRC32_TABLE cached values."
+        crc = byte
+        for j in range(8):
+            crc = (crc >> 1) ^ 0xedb88320 if crc & 1 else crc >> 1
+        return crc
+
+    CRC32_TABLE = [crc(i) for i in range(256)]
+
+    del crc
+
+    def crc32(buffer: bytes, seed = CRC32_SEED) -> int:
+        """
+        Compute crc32 for the given buffer.
+
+        :param buffer: buffer to compute crc32 for.
+        :type buffer: bytes
+        :param seed: seed to start crc32 computation from, default *0xffffffff*.
+        :type seed: int
+        :returns: 32-bit crc
+        """
+        crc = seed
+        for b in buffer:
+            crc = (crc >> 8) ^ CRC32_TABLE[(crc ^ b) & 0xff]
+        return crc
 
 
 #######################################################################
