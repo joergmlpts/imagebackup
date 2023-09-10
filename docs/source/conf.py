@@ -28,7 +28,7 @@ intersphinx_disabled_domains = ['std']
 
 templates_path = ['_templates']
 
-autodoc_mock_imports = ['lz4', 'pyfuse3', 'pyfuse3_asyncio', 'pyzstd']
+autodoc_mock_imports = ['lz4', 'pyfuse3', 'pyfuse3_asyncio', 'zstandard']
 
 # -- Options for HTML output
 
