@@ -10,10 +10,10 @@ for a comprehensive description of these components.
 
 ## Virtual Partitions
 
-At a higher level, two command-line utilities based on this low-level code are
-also included. Its features are as follows:
+At a higher level, three command-line utilities based on this low-level code are
+also included. Their features are as follows:
 * They read partclone, partimage and ntfsclone images, verify checksums and
-  dump headers.
+  list contents.
 * They mount partclone, partimage and ntfsclone images - the backup of a
   partition - as virtual partitions.
 
@@ -32,5 +32,5 @@ Our documentation is at [imagebackup.readthedocs.org](https://imagebackup.readth
 
 - [Utilities](https://imagebackup.readthedocs.io/en/latest/usage.html#utilities-vpartclone-vpartimage-and-vntfsclone)
 - [Installation](https://imagebackup.readthedocs.io/en/latest/usage.html#installation)
-- [API Introduction](https://imagebackup.readthedocs.io/en/latest/api.html)
+- [API Tutorial](https://imagebackup.readthedocs.io/en/latest/api.html)
 - [API Reference](https://imagebackup.readthedocs.io/en/latest/api.html#detailed-api-documentation)
