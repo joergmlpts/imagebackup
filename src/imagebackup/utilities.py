@@ -2,7 +2,7 @@ import bz2, gzip, io, lzma, os, stat, struct
 from dataclasses import dataclass
 from typing import Callable, Dict, List, Optional, Tuple
 
-import pyzstd    # install with "pip install pystd"
+import zstandard # install with "pip install zstandard"
 import lz4.frame # install with "pip install lz4"; on Ubuntu install with "sudo apt install python3-lz4"
 
 from .imagebackup import ImageBackupException as UtilityException
@@ -329,6 +329,114 @@ class ConcatFiles(io.BufferedReader):
 
 
 #######################################################################
+#                              ReadZstd                               #
+#######################################################################
+
+class ReadZstd(io.BufferedReader):
+    """
+    This class is instantiated with a zstd-compressed file. This class adds
+    method `peek` to an instance of `zstandard.ZstdDecompressor.stream_reader`.
+    `stream_reader` does all the heavy lifting.
+
+    :param file: A binary file opened for reading.
+    :type file: io.BufferedReader
+    """
+
+    def __init__(self, file: io.BufferedReader):
+        self.file = file
+        self.buffer = bytes()
+        self.ctx = zstandard.ZstdDecompressor()
+        self.stream_reader = self.ctx.stream_reader(self.file,
+                                                    read_across_frames=True)
+
+    @property
+    def name(self) -> str:
+        """
+        Return file name that we are reading from.
+
+        :returns: file name.
+        """
+        return self.file.name
+
+    @property
+    def mode(self) -> str:
+        """
+        Return the mode the file has been opened with.
+
+        :returns: string 'rb'
+        """
+        return self.stream_reader.mode
+
+    def fileno(self) -> int:
+        """
+        Return file descriptor of the compressed file.
+
+        :returns: integer file descriptor
+        """
+        return self.stream_reader.fileno()
+
+    def peek(self, size: int = 1) -> bytes:
+        """
+        Peek into file. Return data in buffer that has not yet been
+        returned with *read*. The next *read* will return this data.
+
+        :returns: bytes of unread data
+        """
+        if  size > len(self.buffer):
+            self.buffer += self.stream_reader.read(size - len(self.buffer))
+        return self.buffer[:size]
+
+    def read(self, size: Optional[int] = None) -> bytes:
+        """
+        Read *size* bytes from file. When *size* is *None*, read all the
+        rest of the file.
+
+        :returns: *size* bytes or fewer if *size* bytes would read beyond end-of-file.
+        """
+
+        if size is None:
+            result = self.buffer + self.stream_reader.read()
+            self.buffer = bytes()
+            return result
+
+        if size > len(self.buffer):
+            self.buffer += self.stream_reader.read(size - len(self.buffer))
+
+        result = self.buffer[:size]
+        self.buffer = self.buffer[size:]
+        return result
+
+    def seekable(self) -> bool:
+        """
+        Is this stream seekable?
+
+        :returns: *True*
+        """
+        return self.stream_reader.seekable()
+
+    def seek(self, pos: int, whence: int = os.SEEK_SET) -> int:
+        """
+        Seek to position in file.
+
+        :returns: new position in file.
+        """
+        self.buffer = bytes()
+        return self.stream_reader.seek(pos, whence)
+
+    def tell(self) -> int:
+        """
+        Return current position in file.
+
+        :returns: position in file.
+        """
+        return self.stream_reader.tell() - len(self.buffer)
+
+    def close(self) -> None:
+        "Close file."
+        self.stream_reader.close()
+
+
+#######################################################################
 #                            compressedMsg                            #
 #######################################################################
 
@@ -440,10 +548,12 @@ def uncompress(file: io.BufferedReader, errorOut: bool = False) \
     :param errorOut: if *True* do not uncompress but raise exception.
     :type errorOut: bool
     :raises imagebackup.partimage.ImageBackupException: when file cannot be uncompressed or *errorOut* is set.
-    :returns: A triple consisting of opened file, file name, and compression. The compression is represented as empty string for no compression, 'gz', 'bz2', 'zstd', 'xz', 'lzma', or 'lz4'.
+    :returns: A triple consisting of opened file, file name, and compression. The compression is represented as empty string for no compression, 'gz', 'bz2', 'zstd', 'xz', 'lzma', or 'lz4'. Split files are reported along with the compression, 'split' and 'zstd+split' are possible values.
     """
+    split = ''
     if isSplitFile(file.name):
         file = ConcatFiles(file)
+        split = '+split'
     filename = file.name
 
     magic = file.peek(2)
@@ -452,33 +562,23 @@ def uncompress(file: io.BufferedReader, errorOut: bool = False) \
         if word == GZIP:
             if errorOut:
                 raise UtilityException(compressedMsg(filename, 'gz'))
-            return gzip.open(filename=file, mode='rb'), filename, 'gzip'
+            return gzip.open(filename=file, mode='rb'), filename, 'gzip' + split
         if word == BZIP2:
             if errorOut:
                 raise UtilityException(compressedMsg(filename, 'bz2'))
-            return bz2.open(filename=file, mode='rb'), filename, 'bzip2'
+            return bz2.open(filename=file, mode='rb'), filename, 'bzip2' + split
         if word == ZSTD:
-            if not errorOut and not isinstance(file, ConcatFiles) and \
-               isRegularFile(file):
-                file.close()
-                return pyzstd.ZstdFile(filename=filename, mode='rb'), \
-                       filename, 'zstd'
-            else:
+            if errorOut:
                 raise UtilityException(compressedMsg(filename, 'zstd'))
-        elif word in [XZ, LZMA]:
-            if not errorOut and not isinstance(file, ConcatFiles) and \
-               isRegularFile(file):
-                file.close()
-                return lzma.open(filename=filename, mode='rb'), \
-                       filename, 'xz' if word == XZ else 'lzma'
-            else:
+            return ReadZstd(file), filename, 'zstd' + split
+        if word in [XZ, LZMA]:
+            if errorOut:
                 raise UtilityException(compressedMsg(filename, 'lzma'))
-        elif word == LZ4:
-            if not errorOut and not isinstance(file, ConcatFiles) and \
-               isRegularFile(file):
-                file.close()
-                return lz4.frame.open(filename=filename, mode='rb'), \
-                       filename, 'lz4'
-            else:
+            return lzma.LZMAFile(filename=file, mode='rb'), \
+                   filename, ('xz' if word == XZ else 'lzma') + split
+        if word == LZ4:
+            if errorOut:
                 raise UtilityException(compressedMsg(filename, 'lz4'))
-    return file, filename, ''
+            return lz4.frame.LZ4FrameFile(filename=file, mode='rb'), \
+                   filename, 'lz4' + split
+    return file, filename, 'split' if split else ''

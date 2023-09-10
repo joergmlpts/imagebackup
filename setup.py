@@ -44,7 +44,7 @@ setup(name='imagebackup',
               ],              
           },
       python_requires='>=3.8',
-      install_requires=['lz4', 'tqdm', 'pyfuse3', 'pyzstd'],
+      install_requires=['lz4', 'tqdm', 'pyfuse3', 'zstandard'],
       ext_modules=[Extension('imagebackup.crc',
                              sources=['src/c/crc.c'], optional=True)]
       )

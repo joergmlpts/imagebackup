@@ -35,7 +35,7 @@ Installation
 ------------
 
 To use imagebackup, install it using pip. Imagebackup has four depencencies,
-the packages tqdm, pyfuse3, pyzstd, and lz4.
+the packages lz4, pyfuse3, tqdm, and zstandard.
 
 On Ubuntu Linux - and perhaps other Debian-based distributions - these
 dependencies can be installed with:
@@ -275,15 +275,15 @@ index_size
   *index_size* option specifies the size of this range. It defaults to 1024
   bits, which is 128 bytes of the bitmap.
 
-  If *vpartclone* ever runs out of memory, this default value can be doubled or
-  quadrupled. This may double or quadruple the time for each block access but
-  will reduce the memory usage by the factor of two or four.
+  If *vpartclone* or *vpartimage* ever runs out of memory, this default value
+  can be doubled or quadrupled. This may double or quadruple the time for each
+  block access but will reduce the memory usage by the factor of two or four.
 
-  Only *vpartclone* has this option. ntfsclone images do not contain bitmaps
-  and *vntfsclone* does not need this option.
+  Only *vpartclone* and *vpartimage* have this option. ntfsclone images do not
+  contain bitmaps and *vntfsclone* does not need this option.
   
 quiet
   The *-q/--quiet* option suppresses the progress bar that is shown whenever the
-  entire image file is read. The entire file is read when *vntfsclone* builds
-  an index for a virtual partition. The entire file is also read when
-  *vpartclone* verifies checksums.
+  entire image file is read. The entire file is read when *vntfsclone* builds an
+  index for a virtual partition. The entire file is also read when *vpartclone*
+  and *vpartimage* verify checksums.
