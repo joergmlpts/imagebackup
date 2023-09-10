@@ -534,12 +534,12 @@ def isSplitFile(name: str) -> bool:
 def uncompress(file: io.BufferedReader, errorOut: bool = False) \
                -> Tuple[io.BufferedIOBase, str, str]:
     """
-    Undo compression if `file` is a compressed file. Return a triple consisting
-    of possibly a new file to read uncompressed data from, the file name,
-    and the compression used.
+    Handle compression if `file` is a compressed file. Return a triple
+    consisting of possibly a new file to read uncompressed data from, the file
+    name, and the compression used.
 
     This function also deals with split files. If it is called with a file
-    whose name ends with 'aa' and there is also a file that ends woth 'ab',
+    whose name ends with 'aa' and there exists also a file that ends in 'ab',
     this function will virtually concatenate aa, ab, ... and uncompress the
     concatenated contents.
 

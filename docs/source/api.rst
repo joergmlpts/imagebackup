@@ -81,7 +81,7 @@ Blocks
 Once the header and bitmap have been read, we can read all used blocks from the
 partition. Method *blockReader* reads all used blocks in sequence:
 
-.. method:: imagebackup.imagebackup.ImageBackup.blockReader
+.. autofunction:: imagebackup.imagebackup.ImageBackup.blockReader
    :noindex:
 
 Here are two examples for its parameter **fn**, the function which is called
@@ -136,8 +136,12 @@ BlockIO
 There are situations where the blocks in an image file need to be read in random
 order. Class *BlockIO* allows random access to arbitrary ranges of bytes.
 
-The image file cannot be read sequentially in this scenario. It has to be a
-regular file; a pipe will not work.
+.. autoclass:: imagebackup.blockio.BlockIO
+   :noindex:
+   :members:
+
+The image file will not be read sequentially in this scenario. It has to be a
+regular file and must not be compressed.
 
 .. code-block::
 
@@ -147,6 +151,55 @@ regular file; a pipe will not work.
 
    # read 42 bytes at offset 100000 and dump them in hex
    print(' '.join(f'{b:02x}' for b in blockio.read_data(offset=100000, size=42)))
+
+Opening Image Files
+-------------------
+
+Image files are usually compressed and may be split into smaller files
+named *.aa*, *.ab*, ... This package contains functionality to detect and read
+split and compressed image files. All common compression algorithms - *gzip*,
+*bzip2*, *zstandard*, *lz4*, *lzma*, and *xz* - are supported.
+
+.. autofunction:: imagebackup.utilities.uncompress
+   :noindex:
+
+The parameter *errorOut* can be *False* when the caller is going to read the
+image sequentially. It must be *True* for random access since the *seek* method
+is prohibitively slow for compressed files. Split files are fully supported for
+random access.
+
+Image files can also be opened in a generic manner where it either a
+*partclone*, *partimage*, or *ntfsclone* image and the caller does not
+need to know beforehand which kind it is.
+
+.. autofunction:: imagebackup.main.readImage
+   :noindex:
+
+There is no need to call *uncompress*; function *readImage* calls *uncompress*
+internally. This is an example for calling *readImage*:
+
+.. code-block::
+
+   from imagebackup.imagebackup import ImageBackup, ImageBackupException
+   from imagebackup.ntfsclone import NtfsClone
+   from imagebackup.main import readImage
+
+   with open('sda1.img', 'rb') as file:
+
+      try:
+
+          image = readImage(f=file,
+                            block_index_size=ImageBackup.BLOCK_OFFSET_SIZE,
+                            sequential=True,
+                            fn=lambda f:NtfsClone(f))
+          print(image)
+
+      except ImageBackupException as e:
+          print('Failed to read image:', e)
+
+This piece of code will not only read *ntfsclone* images but also *partclone*
+and *partimage* files, even compressed and split ones.
+
 
 Detailed API Documentation
 ==========================

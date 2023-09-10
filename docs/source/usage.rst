@@ -233,9 +233,12 @@ section introduces them all.
      -q, --quiet           suppress progress bar in crc check
 
 image
-  An image file written by *partclone* is the only argument needed. For
-  virtual partitions, this image file must be a regular file. Split files must
-  be contatenated into a single file and compressed files must be uncompressed.
+  An image file written by *partclone*, *vpartimage* or *vntfsclone* is the only
+  argument needed. Split files are supported and the first one, the one ending
+  in *aa*, needs to be passed on the command-line. The utilities will read the
+  other split files as well. Compression with *gzip*, *bzip2*, *zstandard*,
+  *lz4*, *lzma*, and *xz* is supported. For virtual partitions, the image file
+  may be split but must not be compressed.
 
 verbose
   The *-v/--verbose* options cause the header and bitmap information to be
@@ -253,19 +256,18 @@ debug_fuse
 
 crc_check
   The *-c/--crc_check* option requests that all checksums for data blocks be
-  checked. Enabling this adds a lengthy pass through an entire image file before
-  creating the virtual partition.
+  checked. Enabling this adds a lengthy pass over an entire image file.
 
 index_size
   The *-i/--index_size* option is available to reduce the memory consumption of
-  *vpartclone* at the expense of runtime if necessary.
+  *vpartclone* and *vpartimage* at the expense of runtime if necessary.
 
-  When the virtual partition is active, *vpartclone* must read blocks
-  from the image file in an any order. Image files are not organized to alow to
+  When the virtual partition is active, the utilities must read blocks
+  from the image file in an any order. Image files are not organized to allow to
   quickly look up the location of a given data block in the image file. A bitmap
   allows to determine in constant time whether a block is in the image file. If
   a block is in the image file, the total number of bits set from the
-  beginning of that bitmap needs to be counted to determine the location of the
+  beginning of that bitmap need to be counted to determine the location of the
   block's data in the image.
 
   The bitmap can be millions, even tens or hundreds of millions of bytes in
@@ -275,13 +277,13 @@ index_size
   *index_size* option specifies the size of this range. It defaults to 1024
   bits, which is 128 bytes of the bitmap.
 
-  If *vpartclone* or *vpartimage* ever runs out of memory, this default value
+  If *vpartclone* or *vpartimage* ever run out of memory, this default value
   can be doubled or quadrupled. This may double or quadruple the time for each
   block access but will reduce the memory usage by the factor of two or four.
 
   Only *vpartclone* and *vpartimage* have this option. ntfsclone images do not
   contain bitmaps and *vntfsclone* does not need this option.
-  
+
 quiet
   The *-q/--quiet* option suppresses the progress bar that is shown whenever the
   entire image file is read. The entire file is read when *vntfsclone* builds an

@@ -17,12 +17,10 @@ def readImage(f: io.BufferedReader, block_index_size: int, sequential: bool,
               fn: Callable[[io.BufferedIOBase], ImageBackup]) -> ImageBackup:
     """
     Read an image file, uncompress compressed files if possible, check the
-    first bytes of the file to determine correct format.
+    first bytes of the file to determine image format.
 
     :param file: A binary file opened for reading.
     :type file: io.BufferedIOBase
-    :param name: The file name of the file we are reading.
-    :type name: str
     :param block_index_size: is a parameter for the index; defaults to 1024 bits.
     :type block_index_size: int
     :param sequential: Whether or not the image is to be read sequentially. If so, this function will try to support compressed files; otherwise it will suggest a command to uncompress the image file.

@@ -13,9 +13,8 @@ class BlockIO:
     This class fulfills read requests of disk data. It breaks these requests
     down into reads of full blocks from the image file.
 
-    :param image: Binary file opened for input.
+    :param image: image to read blocks from
     :type image: imagebackup.imagebackup.ImageBackup
-    :returns: nothing
     :raises imagebackup.imagebackup.ImageBackupException: if the file is not a regular file.
     """
     
@@ -33,9 +32,9 @@ class BlockIO:
         """
         Read *size* bytes at *offset*.
 
-        :param offset: in partition to read bytes from.
+        :param offset: offset in partition to read bytes from.
         :type offset: int
-        :param size: the number of bytes to read at *offset* in the partition.
+        :param size: the number of bytes to read at *offset*.
         :type size: int
         :returns: no bytes if *offset* is negative, *size* bytes if entire range is within partition, fewer bytes otherwise.
         """
@@ -60,7 +59,7 @@ class BlockIO:
                         ImageBackupException(f'Failed to read full block '
                                              'at {image_file_offset:,}.')
 
-                # Append (a subrange of) block to output.
+                # Append (a subrange of) blocks to output.
                 output += block[idx1:idx2]
         return output
 
