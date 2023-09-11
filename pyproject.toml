@@ -1,6 +1,6 @@
 [project]
 name = 'imagebackup'
-version = '0.2.0'
+version = '0.2.1'
 authors = [
   { name='joergmlpts', email='joergmlpts@outlook.com' },
 ]
@@ -26,7 +26,7 @@ classifiers = [
   'Topic :: System :: Archiving :: Backup',
   'Topic :: Utilities'
 ]
-dependencies = ['lz4', 'tqdm', 'pyfuse3', 'pyzstd']
+dependencies = ['lz4', 'tqdm', 'pyfuse3', 'zstandard']
 keywords = ['partclone', 'partimage', 'ntfsclone', 'image', 'backup']
 
 [project.scripts]
