@@ -99,7 +99,7 @@ class ClusterIndex:
 
 class NtfsClone(ImageBackup):
     """
-    "This Class reads and processes an ntfsclone image file. The constructor
+    This Class reads and processes an ntfsclone image file. The constructor
     reads the header and raises exceptions if the file is not an ntfsclone file.
 
     :param file: Binary file opened for input.

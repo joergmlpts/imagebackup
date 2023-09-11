@@ -107,8 +107,6 @@ class LRU:
 
         :param idx: Index of split file *sf*.
         :type idx: int
-        :param sf: Split file *sf*.
-        :type sf: SplitFile
         """
         if idx in self.lru:
             sf = self.lru.pop(idx)

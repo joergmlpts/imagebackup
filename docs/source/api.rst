@@ -84,7 +84,7 @@ partition. Method *blockReader* reads all used blocks in sequence:
 .. autofunction:: imagebackup.imagebackup.ImageBackup.blockReader
    :noindex:
 
-Here are two examples for its parameter **fn**, the function which is called
+Here are two examples for its parameter *fn*, the function which is called
 with each block of data:
 
 .. code-block::
@@ -99,7 +99,7 @@ with each block of data:
 
 
 The function is only called for used blocks. Unused blocks are not even stored
-in the image file. However, since method **blockReader** calls the function
+in the image file. However, since method *blockReader* calls the function
 strictly in ascending order of the offset, unused blocks can be written as well.
 The following code fills them with *0xdeadbeef*, a pattern that is easily
 recognized in hex dumps:
